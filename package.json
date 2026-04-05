@@ -1,0 +1,114 @@
+{
+	"name": "yahtze",
+	"displayName": "ZIP/TAR Explorer",
+	"description": "Custom editor and explorer for ZIP, TAR, and TGZ archives or folders.",
+	"version": "0.1.0",
+	"publisher": "isopodlabs",
+	"engines": {
+		"vscode": "^1.75.0"
+	},
+	"categories": [
+		"Other",
+		"Visualization"
+	],
+	"extensionKind": [
+		"workspace"
+	],
+	"activationEvents": [
+		"onFileSystem:zip"
+	],
+	"main": "./out/src/extension.js",
+	"contributes": {
+		"customEditors": [
+			{
+				"viewType": "zip.view",
+				"displayName": "ZIP Viewer",
+				"priority": "default",
+				"selector": [
+					{
+						"filenamePattern": "*.zip"
+					},
+					{
+						"filenamePattern": "*.jar"
+					},
+					{
+						"filenamePattern": "*.apk"
+					},
+					{
+						"filenamePattern": "*.vsix"
+					},
+					{
+						"filenamePattern": "*.tar"
+					},
+					{
+						"filenamePattern": "*.tgz"
+					},
+					{
+						"filenamePattern": "*.tar.gz"
+					}
+				]
+			}
+		],
+		"commands": [
+			{
+				"command": "zip.delete",
+				"title": "Delete"
+			},
+			{
+				"command": "zip.rename",
+				"title": "Rename..."
+			},
+			{
+				"command": "zip.explore",
+				"title": "Reveal in ZIP Explorer..."
+			}
+		],
+		"keybindings": [
+			{
+				"command": "zip.rename",
+				"key": "f2",
+				"when": "activeCustomEditorId == zip.view && webviewFocus"
+			},
+			{
+				"command": "zip.delete",
+				"key": "del",
+				"when": "activeCustomEditorId == zip.view && webviewFocus"
+			}
+		],
+		"menus": {
+			"webview/context": [
+				{
+					"command": "zip.rename",
+					"when": "webviewId == 'zip.view' && entry"
+				},
+				{
+					"command": "zip.delete",
+					"when": "webviewId == 'zip.view' && entry"
+				}
+			],
+			"explorer/context": [
+				{
+					"command": "zip.explore",
+					"when": "explorerResourceIsFolder"
+				}
+			]
+		}
+	},
+	"scripts": {
+		"build": "tsc -b",
+		"watch": "tsc -watch -p ./",
+		"watch-link": "tsc -b -watch ./tsconfig.link.json",
+		"link": "npm link @isopodlabs/binary @isopodlabs/binary_libs @isopodlabs/utilities @isopodlabs/vscode_utils"
+	},
+	"devDependencies": {
+		"@types/node": "^18",
+		"@types/vscode": "^1.75.0",
+		"typescript": "^5.8.0"
+	},
+	"dependencies": {
+		"@isopodlabs/binary": "^1.8.1",
+		"@isopodlabs/binary_libs": "^1.5.1",
+		"@isopodlabs/utilities": "^1.9.0",
+		"@isopodlabs/vscode_utils": "^0.5.0"
+	}
+}
