@@ -16,7 +16,6 @@
 				"${workspaceFolder}/node_modules/@isopodlabs/binary_libs/dist/*.js",
 				"${workspaceFolder}/node_modules/@isopodlabs/utilities/dist/*.js",
 				"${workspaceFolder}/node_modules/@isopodlabs/vscode_utils/dist/*.js",
-				"${workspaceFolder}/node_modules/@isopodlabs/xml/dist/*.js",
 				//"D:/dev/packages/**.js",
 				//"E:/Github/vscode/out/**/*.js",
 			],
@@ -26,7 +25,7 @@
 				"args": [
 					"--extensionDevelopmentPath=${workspaceFolder}",
 					"--new-window",
-					"D:\\dev\\packages\\packages.code-workspace"
+					"D:\\dev\\packages\\debug.code-workspace"
 					//"D:\\dev\\shared\\"
 					//"D:\\dev\\vscode_ext\\registry"
 					//"D:\\dev\\vscode_ext\\vstools"

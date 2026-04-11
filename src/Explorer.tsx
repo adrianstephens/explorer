@@ -3,22 +3,14 @@ import { JSX, CSP, CSPdefault, ImportMap, Nonce } from "@isopodlabs/vscode_utils
 import { iconAttributes, IconType } from "@isopodlabs/vscode_utils/codicon";
 import { IconTheme, loadIconTheme } from "@isopodlabs/vscode_utils/icon-theme";
 import * as fs from '@isopodlabs/vscode_utils/fs';
-import * as main from "./extension";
 import * as webview from "@isopodlabs/vscode_utils/webview";
 import type { MessageIn, MessageOut, MessageRpc, Context } from "../webview/explorer";
-import { ZipFileSystem } from './ZipFilesystem';
-
-type ExtendedStats = vscode.FileStat & {[key: string]: any};
-
-class RootDocument implements vscode.CustomDocument {
-	constructor(readonly uri: vscode.Uri, readonly rootUri: vscode.Uri = uri) {}
-	dispose() {}
-}
+import { RootDocument, ZipFileSystem } from './ArchiveFilesystem';
 
 const folderIcon	= new vscode.ThemeIcon('folder', new vscode.ThemeColor('charts.blue'));
 const fileIcon		= new vscode.ThemeIcon('file', new vscode.ThemeColor('charts.blue'));
 
-function themedIconAttributes(webview: vscode.Webview, theme: IconTheme | undefined, iconId: string | undefined, fallback: IconType) {
+function themedIconAttributes(webview: vscode.Webview, theme: IconTheme | undefined, iconId: string | undefined, fallback?: IconType) {
 	if (theme && iconId) {
 		const def = theme.get_def(webview, iconId);
 		if (def) {
@@ -31,16 +23,51 @@ function themedIconAttributes(webview: vscode.Webview, theme: IconTheme | undefi
 			return def;
 		}
 	}
-	return iconAttributes(fallback);
+	if (fallback)
+		return iconAttributes(fallback);
+	return {};
 }
 
-function formatSize(size: number) {
-	return size.toLocaleString();
+const NameColumn = {
+	weight: 2.6,
+};
+
+const ColumnType: Record<string, {fr: number, format: (x: any) => string}> = {
+	string:		{fr: 1.2, format: (x: string) => x},
+	number:		{fr: 1,   format: x => x.toLocaleString()},
+	boolean:	{fr: 0.8, format: x => x ? 'true' : 'false'},
+	time:		{fr: 1.6, format: x => x ? new Date(x).toLocaleString() : ''},
+	path:		{fr: 2,   format: x => x},
+};
+type ColumnType = keyof typeof ColumnType;
+
+interface ColumnDescriptor {
+	label:		string;
+	type:		ColumnType;
 }
 
-function formatModified(time: Date | undefined) {
-	return time ? time.toLocaleString() : '';
+const DefaultColumnDescriptors: Record<string, ColumnDescriptor> = {
+	size:			{label: 'Size',            type: 'number'},
+	compressedSize:	{label: 'Compressed Size', type: 'number'},
+	mtime:			{label: 'Modified',        type: 'time'},
+	ctime:			{label: 'Created',         type: 'time'},
+	owner:			{label: 'Owner',           type: 'string'},
 }
+
+
+function discoverColumns(rootUri: vscode.Uri): Record<string, ColumnDescriptor> {
+	const keys		= new Set<string>(fs.supportedStat(rootUri));
+
+	const columns: Record<string, ColumnDescriptor> = {};
+	for (const key in DefaultColumnDescriptors) {
+		if (keys.has(key)) {
+			const desc = DefaultColumnDescriptors[key];
+			columns[key] = desc;//{...desc, format: ColumnType[desc.type].format};
+		}
+	}
+	return columns;
+}
+
 
 class Explorer extends webview.Panel<MessageOut, MessageIn, MessageRpc> {
 	selected = new Set<string>();
@@ -52,20 +79,16 @@ class Explorer extends webview.Panel<MessageOut, MessageIn, MessageRpc> {
 		public rootUri: vscode.Uri,
 		public webviewPanel: vscode.WebviewPanel,
 		extensionUri: vscode.Uri,
+		public readonly: boolean,
+		private columns: Record<string, ColumnDescriptor>,
 		private theme?: IconTheme,
 	) {
 		super(webviewPanel);
 
 		this.watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(rootUri, '**/*'));
-		this.watcher.onDidChange(uri => {
-			this.updateEntry(uri);
-		});
-		this.watcher.onDidCreate(uri => {
-			this.updateEntry(uri);
-		});
-		this.watcher.onDidDelete(uri => {
-			this.updateEntry(uri);
-		});
+		this.watcher.onDidChange(uri => this.updateEntry(uri));
+		this.watcher.onDidCreate(uri => this.updateEntry(uri));
+		this.watcher.onDidDelete(uri => this.updateEntry(uri));
 
 		const webview = webviewPanel.webview;
 
@@ -82,13 +105,19 @@ class Explorer extends webview.Panel<MessageOut, MessageIn, MessageRpc> {
 		}
 
 		const nonce = Nonce();
+		const cols = Object.values(columns).map(i => ColumnType[i.type]);
+		const namefr = NameColumn.weight / (NameColumn.weight + cols.reduce((sum, i) => sum + i.fr, 0));
 
 		webview.html = '<!DOCTYPE html>' + JSX.render(
 			<html lang="en">
 				<head>
 					<meta charset="UTF-8"/>
 					<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-					<CSP csp={[CSPdefault(extensionUri), CSP.self, CSP.unsafe_inline]} script={nonce}/>
+					<CSP
+						csp={[CSPdefault(extensionUri), CSP.self, CSP.unsafe_inline]}
+						script={nonce}
+						img={[CSPdefault(extensionUri), CSP.self, vscode.Uri.parse('data:')]}
+					/>
 					<ImportMap nonce={nonce} webview={webview} map={{
 						"@isopodlabs/vscode_utils/webview/":	vscode.Uri.joinPath(extensionUri, 'node_modules/@isopodlabs/vscode_utils/dist/webview/'),
 					}}/>
@@ -99,26 +128,15 @@ class Explorer extends webview.Panel<MessageOut, MessageIn, MessageRpc> {
 					<script type="module" nonce={nonce} src={webviewUri('out/webview/explorer.js')}></script>
 
 				</head>
-			<body>
-				<template id="directory-template">
-					<div class="caret">
-						<span class="zip-folder select" draggable="true" data-entry="$(entry)" data-attrs="icon">$(name)</span>
-						<div class="children"/>
-					</div>
-				</template>
-				<template id="entry-template">
-					<div class="zip-leaf select" data-entry="$(entry)" draggable="true">
-						<span class="zip-col-name" data-attrs="icon">$(name)</span>
-						<span class="zip-col-size">$(uncompressed)</span>
-						<span class="zip-col-size">$(compressed)</span>
-						<span class="zip-col-time">$(modified)</span>
-					</div>
-				</template>
-				<div class="zip-header">
+			<body style={`
+				--name-fr: ${namefr};
+				--stat-columns: ${cols.map(i => `minmax(0, ${i.fr}fr)`).join(' ')};`
+				}>
+				<div class="header">
 					<span>Name</span>
-					<span class="zip-col-size">Uncompressed</span>
-					<span class="zip-col-size">Compressed</span>
-					<span class="zip-col-time">Modified</span>
+					{Object.entries(this.columns).map(([key, col]) =>
+						<span class={`col-${col.type} col-key-${key}`}>{col.label}</span>
+					)}
 				</div>
 
 				<div class="tree" data-entry={rootUri.toString()}/>
@@ -138,32 +156,38 @@ class Explorer extends webview.Panel<MessageOut, MessageIn, MessageRpc> {
 				console.log(`Load requested: ${message.entry}`);
 				const entry		= message.entry ? vscode.Uri.parse(decodeURI(message.entry)) : this.rootUri;
 				const children	= await vscode.workspace.fs.readDirectory(entry);
-				const dirs		= children.filter(i => i[1] === vscode.FileType.Directory);
-				const files		= children.filter(i => i[1] === vscode.FileType.File);
-
-				const result = {
-					dirs: dirs.map(i =>  {
-						const name = i[0];
-						return {
-							name,
-							entry: vscode.Uri.joinPath(entry, name).toString() + '/',
-							icon: themedIconAttributes(this.webviewPanel.webview, this.theme, this.theme?.getFolderIcon(name, true), folderIcon),
-						};
-					}),
-					files: await Promise.all(files.map(async i => {
-						const name = i[0];
-						const stats = (await vscode.workspace.fs.stat(vscode.Uri.joinPath(entry, name)))! as ExtendedStats;
-						return {
-							name,
-							compressed: formatSize(stats.compressedSize ?? stats.size),
-							uncompressed: formatSize(stats.size),
-							modified: formatModified(new Date(stats.mtime)),
-							entry: vscode.Uri.joinPath(entry, name).toString(),
-							icon: themedIconAttributes(this.webviewPanel.webview, this.theme, this.theme?.getFileIcon(name), fileIcon),
-						};
-					})),
+				const symlinks	= new Set(children.filter(i => i[1] & vscode.FileType.SymbolicLink).map(i => i[0]));
+				const dirs		= children.filter(i => i[1] & vscode.FileType.Directory).map(i => i[0]);
+				const files		= children.filter(i => i[1] & vscode.FileType.File).map(i => i[0]);
+				return {
+					html: JSX.render(<>{[
+						... await Promise.all(dirs.map(async name => {
+							const symlink = symlinks.has(name) ? (await fs.stat(vscode.Uri.joinPath(entry, name))).link : undefined;
+							return <div class="caret">
+								<span class="folder select" draggable="true"
+									data-entry={vscode.Uri.joinPath(entry, name).toString() + '/'}
+									data-link={symlink}
+									{...themedIconAttributes(this.webviewPanel.webview, this.theme, this.theme?.getFolderIcon(name, true), symlink ? folderIcon : undefined)}
+								>{name}</span>
+								<div class="children"/>
+							</div>
+						})),
+						...	await Promise.all(files.map(async name => {
+							const stats = await fs.stat(vscode.Uri.joinPath(entry, name));
+							const symlink = symlinks.has(name) ? stats.link : undefined;
+							return <div class="leaf">
+								<span class="file select"  draggable="true"
+									data-entry={vscode.Uri.joinPath(entry, name).toString()}
+									data-link={symlink}
+									{...themedIconAttributes(this.webviewPanel.webview, this.theme, this.theme?.getFileIcon(name), fileIcon)}
+								>{name}</span>
+								{Object.entries(this.columns).map(([key, col]) =>
+									<span class={`col-${col.type} col-key-${key}`}>{ColumnType[col.type].format(stats[key])}</span>
+								)}
+							</div>
+						}))
+					]}</>)
 				};
-				return result;
 			}
 
 			case 'drag_start':
@@ -189,7 +213,7 @@ class Explorer extends webview.Panel<MessageOut, MessageIn, MessageRpc> {
 				} else {
 					await fs.writeFile(target, new Uint8Array(message.data));
 					if (message.mtime)
-						fs.setStats(target, { mtime: message.mtime });
+						fs.setStat(target, { mtime: message.mtime });
 				}
 				break;
 			}
@@ -218,7 +242,7 @@ class Explorer extends webview.Panel<MessageOut, MessageIn, MessageRpc> {
 					this.selected.add(message.selector);
 					const uri	= vscode.Uri.parse(message.entry);
 					const stat	= await fs.getStat(uri);
-					if (stat && stat.type === vscode.FileType.File)
+					if (stat && (stat.type & vscode.FileType.File))
 						vscode.commands.executeCommand('vscode.open', uri, {viewColumn: vscode.ViewColumn.Beside, preview: true});
 				}
 				this.anchor = message.selector;
@@ -238,29 +262,28 @@ class Explorer extends webview.Panel<MessageOut, MessageIn, MessageRpc> {
 	}
 
 	beginEdit(entry: string): Promise<string> {
-		return this.RPC({command: 'edit', selector: entry.endsWith('/')
-			? `[data-entry="${entry}"]`
-			: `[data-entry="${entry}"] .zip-col-name`
-		});
+		//return this.RPC({command: 'edit', selector: entry.endsWith('/')
+		//	? `[data-entry="${entry}"]`
+		//	: `[data-entry="${entry}"] .col-name`
+		//});
+		return this.RPC({command: 'edit', selector: `[data-entry="${entry}"]`});
 	}
 }
 
 export class ExplorerProvider implements vscode.CustomReadonlyEditorProvider {
 	private theme:	Promise<IconTheme|undefined>;
-	private editors = new Set<Explorer>();
+	private active: Explorer | undefined;
 	private extensionUri: vscode.Uri;
 
-	private getActiveEditor() {
-		for (const editor of this.editors) {
-			if (editor.webviewPanel.active)
-				return editor;
-		}
+	private setActive(editor: Explorer) {
+		this.active = editor;
+		vscode.commands.executeCommand('setContext', 'zip.readonly', editor.readonly);
 	}
 
 	private getContext(ctx?: Context) {
 		if (ctx?.entry)
 			return ctx;
-		return this.getActiveEditor()?.getContext();
+		return this.active?.getContext();
 	}
 
 	constructor(context: vscode.ExtensionContext) {
@@ -271,11 +294,16 @@ export class ExplorerProvider implements vscode.CustomReadonlyEditorProvider {
 			vscode.window.registerCustomEditorProvider('zip.view', this),
 
 			vscode.commands.registerCommand('zip.rename', async (ctx?: Context) => {
+				if (this.active?.readonly) {
+					vscode.window.showWarningMessage('Archive is read-only.');
+					return;
+				}
+
 				ctx = this.getContext(ctx);
 				if (!ctx)
 					return;
 
-				const active = this.getActiveEditor();
+				const active = this.active;
 				if (active) {
 					const newName = await active.beginEdit(ctx.entry);
 					if (!newName)
@@ -296,6 +324,11 @@ export class ExplorerProvider implements vscode.CustomReadonlyEditorProvider {
 				}
 			}),
 			vscode.commands.registerCommand('zip.delete', async (ctx?: Context) => {
+				if (this.active?.readonly) {
+					vscode.window.showWarningMessage('Archive is read-only.');
+					return;
+				}
+
 				ctx = this.getContext(ctx);
 				if (!ctx)
 					return;
@@ -310,7 +343,7 @@ export class ExplorerProvider implements vscode.CustomReadonlyEditorProvider {
 				);
 				if (choice === 'Delete') {
 					if (ctx.selectionCount > 1) {
-						for (const selector of this.getActiveEditor()?.selected ?? []) {
+						for (const selector of this.active?.selected ?? []) {
 							const entryUri = vscode.Uri.parse(selector);
 							await vscode.workspace.fs.delete(entryUri, {recursive: true, useTrash: false});
 						}
@@ -323,21 +356,23 @@ export class ExplorerProvider implements vscode.CustomReadonlyEditorProvider {
 			vscode.commands.registerCommand('zip.explore', async (uri: vscode.Uri) => {
 				await vscode.commands.executeCommand('vscode.openWith', uri, 'zip.view', { preview: true });
 			}),
-
 		);
 	}
 
 	async openCustomDocument(uri: vscode.Uri, _openContext: vscode.CustomDocumentOpenContext, _token: vscode.CancellationToken): Promise<vscode.CustomDocument> {
 		const stat = await vscode.workspace.fs.stat(uri);
 		if (stat.type & vscode.FileType.Directory)
-			return new RootDocument(uri);
+			return new RootDocument(uri, false);
 		return ZipFileSystem.getDoc(uri);
 	}
 
-	async resolveCustomEditor(doc: vscode.CustomDocument, webviewPanel: vscode.WebviewPanel, _token?: vscode.CancellationToken): Promise<void> {
-		const rootUri = (doc as RootDocument).rootUri;
-		const editor = new Explorer(rootUri, webviewPanel, this.extensionUri, await this.theme);
-		this.editors.add(editor);
-		webviewPanel.onDidDispose(() => this.editors.delete(editor));
+	async resolveCustomEditor(doc: RootDocument, webviewPanel: vscode.WebviewPanel, _token?: vscode.CancellationToken): Promise<void> {
+		const editor = new Explorer(doc.rootUri, webviewPanel, this.extensionUri, doc.readonly, discoverColumns(doc.rootUri), await this.theme);
+		this.setActive(editor);
+
+		webviewPanel.onDidChangeViewState(event => {
+			if (event.webviewPanel.active)
+				this.setActive(editor);
+		});
 	}
 }

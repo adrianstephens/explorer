@@ -1,4 +1,4 @@
-import { vscode, RPC, handleResult, createElement, fixupElements, ScrollBar, generateSelector, selectorsBetween, MessageOut as MessageOut0, RpcMessage, template } from '@isopodlabs/vscode_utils/webview/shared.js';
+import { vscode, RPC, handleResult, createElement, fixupElements, ScrollBar, generateSelector, selectorsBetween, MessageOut as MessageOut0, RpcMessage } from '@isopodlabs/vscode_utils/webview/shared.js';
 import { Tree, updateStuck } from '@isopodlabs/vscode_utils/webview/tree.js';
 
 export type MessageOut = MessageOut0
@@ -32,8 +32,24 @@ function postMessage(message: MessageOut) {
 }
 
 const state: State	= { open:[], scroll: 0, ...vscode.getState() };
-const vscroll 		= new ScrollBar(document.body, document.documentElement, false);
 const treeRoot		= document.querySelector<HTMLElement>('.tree')!;
+const vscroll 		= new ScrollBar(document.body, {
+	get clientOffset()          { return Math.round(treeRoot.getBoundingClientRect().top + Math.max(treeRoot.clientTop, 0)); },
+	get clientPixels()          { return treeRoot.clientHeight; },
+	get clientSize()            { return treeRoot.clientHeight; },
+	get scrollOffset()          { return treeRoot.scrollTop; },
+	get scrollSize()            { return treeRoot.scrollHeight; },
+	set scrollOffset(x: number) { treeRoot.scrollTop = x; },
+}, false);
+
+function updateStickyMetrics() {
+	const row = treeRoot.querySelector<HTMLElement>('.leaf, .folder');
+	if (row) {
+		const height = Math.ceil(row.getBoundingClientRect().height);
+		if (height > 0)
+			treeRoot.style.setProperty('--row-height', `${height}px`);
+	}
+}
 
 function getSelectedEntries() {
 	return Array.from(
@@ -69,6 +85,7 @@ const tree	= new Tree(treeRoot, (element, open) => {
 
 document.addEventListener('DOMContentLoaded', async () => {
 	await load(treeRoot, treeRoot.dataset.entry!);
+	updateStickyMetrics();
 
 	if (state.open.length) {
 		for (const i of state.open) {
@@ -80,22 +97,28 @@ document.addEventListener('DOMContentLoaded', async () => {
 		state.open = tree.all_open().map(e => e.dataset.entry!);
 		vscode.setState(state);
 	}
-	window.scrollTo(0, state.scroll);
+	treeRoot.scrollTop = state.scroll;
 	vscroll.update();
+	updateStuck();
+	updateStickyMetrics();
+});
+
+window.addEventListener('resize', () => {
+	updateStickyMetrics();
 	updateStuck();
 });
 
-document.addEventListener("scroll", _event => {
+treeRoot.addEventListener("scroll", _event => {
 	vscroll.update();
 	updateStuck();
-	state.scroll = window.scrollY;
+	state.scroll = treeRoot.scrollTop;
 	vscode.setState(state);
 });
 
 function beginEditElement(target: HTMLElement): Promise<string> {
 	const original		= target.textContent || '';
 	const originalHtml	= target.innerHTML;
-	const input			= createElement('input', {className: 'zip-edit-input', type: 'text', value: original});
+	const input			= createElement('input', {type: 'text', value: original});
 
 	target.innerHTML	= '';
 	target.appendChild(input);
@@ -172,9 +195,9 @@ tree.dragAndDrop({
 	over(ctx: string[], target, data, modifierKey) {
 		console.log('over', target);
 
-		const row = target.closest<HTMLElement>('.caret')?.querySelector<HTMLElement>('.zip-folder');
+		const row = target.closest<HTMLElement>('.caret')?.querySelector<HTMLElement>('.folder');
 //		const row = rowFromEventTarget(target);
-		if (row?.classList.contains('zip-folder')) {
+		if (row?.classList.contains('folder')) {
 			data.dropEffect = 'copy';
 
 			if (data.types.includes(INTERNAL_DND_MIME)) {
@@ -240,29 +263,14 @@ treeRoot.addEventListener('contextmenu', event => {
 	row.dataset.vscodeContext = JSON.stringify(payload);
 }, true);
 
-function add(dest: HTMLElement, template_id: string, values: Record<string, any>[]) {
-	const source = document.getElementById(template_id) as HTMLTemplateElement;
-	if (!source)
-		return;
-
-	const templateSource = source instanceof HTMLTemplateElement
-		? source.content.firstElementChild as HTMLElement | null
-		: source;
-	if (!templateSource)
-		return;
-
-	const children = template(templateSource, dest, values);
-	for (const child of children) {
-		tree.fixup(child);
-		fixupElements(child);
-	}
-}
-
 async function load(dest: HTMLElement, entry: string) {
-	const result = await RPC<{dirs: Record<string, any>[], files: Record<string, any>[]}>({command: 'load', entry});
-	dest.innerHTML = '';
-	add(dest, 'directory-template', result.dirs);
-	add(dest, 'entry-template', result.files);
+	const result = await RPC<{html: string}>({command: 'load', entry});
+	dest.innerHTML = result.html;
+	tree.fixup(dest);
+	fixupElements(dest);
+	updateStickyMetrics();
+	vscroll.update();
+	updateStuck();
 }
 
 async function loadRecursive(entry: string): Promise<HTMLElement | null> {
@@ -296,16 +304,15 @@ window.addEventListener('message', event => {
     switch (e.command) {
 		case 'update': {
 			const dest = document.querySelector<HTMLElement>(e.selector);
-			if (!dest) {
-				load(treeRoot, '');
+			if (!dest || dest === treeRoot) {
+				load(treeRoot, treeRoot.dataset.entry ?? '');
 
 			} else {
-				const children = dest.parentElement!.querySelector<HTMLElement>('.children');
+				const caret = dest.parentElement;
+				const children = caret?.querySelector<HTMLElement>(':scope > .children');
 				if (children && children.childElementCount !== 0)
 					load(children, dest.dataset.entry!);
 			}
-
-			vscroll.update();
 			break;
 		}
 

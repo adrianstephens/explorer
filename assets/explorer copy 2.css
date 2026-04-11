@@ -24,7 +24,6 @@ body {
 	--depth: 0;
 	--depth2: 0;
 	--row-height: 23px;
-	 --indent-step: 20px;
 	background-color: var(--vscode-editor-background);
 }
 
@@ -38,12 +37,11 @@ body {
 
 .caret {
 	--depth: calc(var(--depth2) + 1);
-	padding-left: var(--indent-step);
+	padding-left: 20px;/*calc(var(--depth) * 20px);*/
+	background-color: var(--vscode-editor-background);
 
 	&.caret-down > span {
 		position: sticky;
-		width: 100%;
-		background-color: var(--vscode-editor-background);
 		padding-top: 1px;
 		top: calc((var(--depth) - 1) * var(--row-height));
 		z-index: calc(20 - var(--depth));
@@ -71,55 +69,70 @@ body {
 	font-size: 11px;
 	user-select: none;
 	display: grid;
-	grid-template-columns: minmax(0, calc(var(--name-fr) * 100%)) var(--stat-columns);
+	grid-template-columns: var(--name-column) var(--stat-columns);
 	column-gap: 12px;
-	width: 100%;
+	width: 100%
 }
 
 .folder {
-	position: relative;
+	background-color: inherit;
 	display: inline-block;
-	width: calc(var(--name-fr) * 100%);
+	width: var(--name-column);/*calc(100% - 18px);*/
+	&[data-link]::after {
+		font-family: 'codicon';
+		content: '\eaed';
+	}
 }
 
 .leaf {
 	display: grid;
-	grid-template-columns: minmax(0, calc(var(--name-fr) * 100% - var(--depth) * (1 - var(--name-fr)) * var(--indent-step))) var(--stat-columns);
+	grid-template-columns: calc(var(--name-column) - var(--depth) * 10px) var(--stat-columns);
 	column-gap: 12px;
 	width: 100%;
 	overflow: hidden;
 	flex: 1 1 auto;
 	min-width: 0;
-	& > span {
-		display: block;
-		min-width: 0;
-		max-width: 100%;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
 }
 
-.file {
-	position: relative;
+.leaf > span {
+	display: block;
+	min-width: 0;
+	white-space: nowrap;
+}
+
+.col-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
 	padding-left: 18px;
+	pointer-events: none;
+	&[data-link]::after {
+		content: "⤷";
+	}
 }
 
 .col-number,
 .col-time {
+	overflow: hidden;
+	text-overflow: ellipsis;
 	text-align: right;
 	font-variant-numeric: tabular-nums;
 }
 
 .col-string {
+	overflow: hidden;
+	text-overflow: ellipsis;
 	text-align: left;
 }
 
 .col-path {
+	overflow: hidden;
+	text-overflow: ellipsis;
 	text-align: left;
 }
 
 .col-boolean {
+	overflow: hidden;
+	text-overflow: ellipsis;
 	text-align: center;
 }
 
@@ -142,27 +155,6 @@ body {
 		line-height: inherit;
 		width: 100%;
 	}
-}
-
-/* ── symlink badge ────────────────────────────────────────────────────── */
-
-.file[data-link]::after,
-.folder[data-link]::after {
-	color: var(--vscode-badge-foreground);
-	content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7' fill='%23007acc'/%3E%3Cpath d='M5 11L11 5M7 5h4v4' fill='none' stroke='%23fff' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  	position: absolute;
-	/*content: url("./symlink.svg");*/
-	pointer-events: none;
-}
-
-.folder[data-link]::after {
-	top: 4px;
-	left: 8px;
-}
-
-.file[data-link]::after {
-	top: 4px;
-	left: 28px;
 }
 
 /* ── drag and drop ────────────────────────────────────────────────────── */
