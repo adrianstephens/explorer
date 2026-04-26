@@ -10,17 +10,27 @@
 		"explorer"
 	],
 	"version": "0.1.0",
+	"license": "MIT",
 	"icon": "assets/icon.png",
 	"publisher": "isopodlabs",
 	"repository": "https://github.com/adrianstephens/vscode-explorer",
+	"homepage": "https://github.com/adrianstephens/vscode-explorer#readme",
+	"bugs": {
+		"url": "https://github.com/adrianstephens/vscode-explorer/issues"
+	},
 	"files": [
-		"node_modules",
+		"node_modules/@isopodlabs/binary/dist/*.js",
+		"node_modules/@isopodlabs/binary_bitmaps/dist/*.js",
+		"node_modules/@isopodlabs/utilities/dist/*.js",
+		"node_modules/@isopodlabs/vscode_utils/dist/**/*.js",
+		"node_modules/@isopodlabs/vscode_utils/assets",
 		"out/**/*.js",
-		"assets/*",
-		"LICENSE.txt",
-		"!**/*.psd",
-		"!**/*.gif",
-		"!**/*.d.ts"
+		"assets/explorer.css",
+		"assets/bitmap.css",
+		"assets/bitmap.vert",
+		"assets/bitmap.frag",
+		"assets/icon.png",
+		"LICENSE.txt"
 	],
 	"engines": {
 		"vscode": "^1.75.0"
@@ -65,6 +75,28 @@
 						"filenamePattern": "*.tar.gz"
 					}
 				]
+			},
+			{
+				"viewType": "bitmap.viewer",
+				"displayName": "Bitmap Viewer",
+				"priority": "default",
+				"selector": [
+					{
+						"filenamePattern": "*.bmp"
+					},
+					{
+						"filenamePattern": "*.png"
+					},
+					{
+						"filenamePattern": "*.jpg"
+					},
+					{
+						"filenamePattern": "*.jpeg"
+					},
+					{
+						"filenamePattern": "*.dds"
+					}
+				]
 			}
 		],
 		"commands": [
@@ -80,7 +112,17 @@
 			},
 			{
 				"command": "zip.explore",
-				"title": "Reveal in ZIP Explorer..."
+				"title": "Reveal in Editor"
+			},
+			{
+				"command": "bitmap.fit",
+				"title": "Fit to Window",
+				"icon": "$(screen-normal)"
+			},
+			{
+				"command": "bitmap.reset",
+				"title": "Reset Zoom",
+				"icon": "$(refresh)"
 			}
 		],
 		"keybindings": [
@@ -91,7 +133,7 @@
 			},
 			{
 				"command": "zip.delete",
-				"key": "del",
+				"key": "delete",
 				"when": "activeCustomEditorId == zip.view && !zip.readonly"
 			}
 		],
@@ -111,14 +153,27 @@
 					"command": "zip.explore",
 					"when": "explorerResourceIsFolder"
 				}
+			],
+			"editor/title": [
+				{
+					"command": "bitmap.fit",
+					"when": "activeCustomEditorId == bitmap.viewer",
+					"group": "navigation"
+				},
+				{
+					"command": "bitmap.reset",
+					"when": "activeCustomEditorId == bitmap.viewer",
+					"group": "navigation"
+				}
 			]
 		}
 	},
 	"scripts": {
 		"build": "tsc -b",
-		"watch": "tsc -watch -p ./",
+		"watch": "tsc -b -watch",
 		"watch-link": "tsc -b -watch ./tsconfig.link.json",
-		"link": "npm link @isopodlabs/binary @isopodlabs/binary_libs @isopodlabs/utilities @isopodlabs/vscode_utils"
+		"link": "npm link @isopodlabs/binary @isopodlabs/binary_libs @isopodlabs/binary_bitmaps @isopodlabs/utilities @isopodlabs/vscode_utils",
+		"update": "npm install @isopodlabs/binary @isopodlabs/binary_libs @isopodlabs/binary_bitmaps @isopodlabs/utilities @isopodlabs/vscode_utils"
 	},
 	"devDependencies": {
 		"@types/node": "^18",
@@ -126,9 +181,10 @@
 		"typescript": "^5.8.0"
 	},
 	"dependencies": {
-		"@isopodlabs/binary": "^1.8.1",
-		"@isopodlabs/binary_libs": "^1.5.1",
-		"@isopodlabs/utilities": "^1.9.0",
-		"@isopodlabs/vscode_utils": "^0.5.0"
+		"@isopodlabs/binary": "^1.9.1",
+		"@isopodlabs/binary_libs": "^1.7.0",
+		"@isopodlabs/binary_bitmaps": "^1.7.0",
+		"@isopodlabs/utilities": "^1.10.0",
+		"@isopodlabs/vscode_utils": "^0.6.2"
 	}
 }

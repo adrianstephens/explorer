@@ -2,10 +2,10 @@ import * as vscode from 'vscode';
 import { JSX, CSP, CSPdefault, ImportMap, Nonce } from "@isopodlabs/vscode_utils/jsx-runtime";
 import { iconAttributes, IconType } from "@isopodlabs/vscode_utils/codicon";
 import { IconTheme, loadIconTheme } from "@isopodlabs/vscode_utils/icon-theme";
+import { RootDocument, ZipFileSystem } from './ArchiveFilesystem';
 import * as fs from '@isopodlabs/vscode_utils/fs';
 import * as webview from "@isopodlabs/vscode_utils/webview";
 import type { MessageIn, MessageOut, MessageRpc, Context } from "../webview/explorer";
-import { RootDocument, ZipFileSystem } from './ArchiveFilesystem';
 
 const folderIcon	= new vscode.ThemeIcon('folder', new vscode.ThemeColor('charts.blue'));
 const fileIcon		= new vscode.ThemeIcon('file', new vscode.ThemeColor('charts.blue'));
@@ -25,7 +25,6 @@ function themedIconAttributes(webview: vscode.Webview, theme: IconTheme | undefi
 	}
 	if (fallback)
 		return iconAttributes(fallback);
-	return {};
 }
 
 const NameColumn = {
@@ -54,26 +53,35 @@ const DefaultColumnDescriptors: Record<string, ColumnDescriptor> = {
 	owner:			{label: 'Owner',           type: 'string'},
 }
 
-
-function discoverColumns(rootUri: vscode.Uri): Record<string, ColumnDescriptor> {
-	const keys		= new Set<string>(fs.supportedStat(rootUri));
-
+function discoverColumns(supported: string[]): Record<string, ColumnDescriptor> {
 	const columns: Record<string, ColumnDescriptor> = {};
+	const keys		= new Set<string>(supported);
 	for (const key in DefaultColumnDescriptors) {
-		if (keys.has(key)) {
-			const desc = DefaultColumnDescriptors[key];
-			columns[key] = desc;//{...desc, format: ColumnType[desc.type].format};
-		}
+		if (keys.has(key))
+			columns[key] = DefaultColumnDescriptors[key];
 	}
 	return columns;
 }
 
+/*
+function findOpenTab(uri: vscode.Uri, viewType?: string): vscode.Tab | undefined {
+	const key = uri.toString();
+	for (const group of vscode.window.tabGroups.all) {
+		for (const tab of group.tabs) {
+			const input = tab.input;
+			if (viewType) {
+				if (input instanceof vscode.TabInputCustom && input.viewType === viewType && input.uri.toString() === key)
+					return tab;
+			} else if (input instanceof vscode.TabInputText && input.uri.toString() === key) {
+				return tab;
+			}
+		}
+	}
+}
+
+*/
 
 class Explorer extends webview.Panel<MessageOut, MessageIn, MessageRpc> {
-	selected = new Set<string>();
-	anchor?: string;
-	contextEntry?: string;
-	watcher: vscode.FileSystemWatcher;
 
 	constructor(
 		public rootUri: vscode.Uri,
@@ -85,10 +93,14 @@ class Explorer extends webview.Panel<MessageOut, MessageIn, MessageRpc> {
 	) {
 		super(webviewPanel);
 
-		this.watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(rootUri, '**/*'));
-		this.watcher.onDidChange(uri => this.updateEntry(uri));
-		this.watcher.onDidCreate(uri => this.updateEntry(uri));
-		this.watcher.onDidDelete(uri => this.updateEntry(uri));
+		const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(rootUri, '**/*'));
+		watcher.onDidChange(uri => this.updateEntry(uri));
+		watcher.onDidCreate(uri => this.updateEntry(uri));
+		watcher.onDidDelete(uri => this.updateEntry(uri));
+
+		webviewPanel.onDidDispose(() => {
+			watcher.dispose();
+		});
 
 		const webview = webviewPanel.webview;
 
@@ -147,13 +159,9 @@ class Explorer extends webview.Panel<MessageOut, MessageIn, MessageRpc> {
 		this.postMessage({command: 'update', selector: `[data-entry="${uri.with({path: fs.dirname(uri)}).toString() + '/'}"]`});
 	}
 
-	private addClass(selector: string, clss: string, enable:boolean) {
-		this.postMessage({command: 'add_class', selector, class: clss, enable});
-	}
 	async command(message: MessageOut) {
 		switch (message.command) {
 			case 'load': {
-				console.log(`Load requested: ${message.entry}`);
 				const entry		= message.entry ? vscode.Uri.parse(decodeURI(message.entry)) : this.rootUri;
 				const children	= await vscode.workspace.fs.readDirectory(entry);
 				const symlinks	= new Set(children.filter(i => i[1] & vscode.FileType.SymbolicLink).map(i => i[0]));
@@ -175,9 +183,10 @@ class Explorer extends webview.Panel<MessageOut, MessageIn, MessageRpc> {
 						...	await Promise.all(files.map(async name => {
 							const stats = await fs.stat(vscode.Uri.joinPath(entry, name));
 							const symlink = symlinks.has(name) ? stats.link : undefined;
-							return <div class="leaf">
-								<span class="file select"  draggable="true"
-									data-entry={vscode.Uri.joinPath(entry, name).toString()}
+							return <div class="leaf select" draggable="true"
+								data-entry={vscode.Uri.joinPath(entry, name).toString()}
+							>
+								<span class="file"
 									data-link={symlink}
 									{...themedIconAttributes(this.webviewPanel.webview, this.theme, this.theme?.getFileIcon(name), fileIcon)}
 								>{name}</span>
@@ -189,7 +198,7 @@ class Explorer extends webview.Panel<MessageOut, MessageIn, MessageRpc> {
 					]}</>)
 				};
 			}
-
+/*
 			case 'drag_start':
 				if (!this.selected.has(message.selector)) {
 					this.selected.forEach(selector => this.addClass(selector, 'selected', false));
@@ -199,10 +208,9 @@ class Explorer extends webview.Panel<MessageOut, MessageIn, MessageRpc> {
 				}
 				this.anchor = message.selector;
 				break;
-
+*/
 			case 'copyFile': {
 				const target = vscode.Uri.parse(message.target);
-				console.log(`copyFile requested: ${message.data} -> ${target}`);
 				if (typeof message.data === 'string') {
 					const source = vscode.Uri.parse(message.data);
 					if (message.move)
@@ -218,55 +226,25 @@ class Explorer extends webview.Panel<MessageOut, MessageIn, MessageRpc> {
 				break;
 			}
 
-			case 'select':
-				if (message.shiftKey) {
-					this.selected.forEach(selector => this.addClass(selector, 'selected', false));
-					this.selected.clear();
-					if (this.anchor) {
-						const selectors = await this.RPC({command: 'get_select_range', from: this.anchor, to: message.selector});
-						selectors.forEach((selector: string) => this.addClass(selector, 'selected', true));
-						this.selected = new Set(selectors);
-					}
-				} else if (message.ctrlKey) {
-					if (this.selected.has(message.selector)) {
-						this.addClass(message.selector, 'selected', false);
-						this.selected.delete(message.selector);
-					} else {
-						this.addClass(message.selector, 'selected', true);
-						this.selected.add(message.selector);
-					}
-				} else {
-					this.selected.forEach(selector => this.addClass(selector, 'selected', false));
-					this.selected.clear();
-					this.addClass(message.selector, 'selected', true);
-					this.selected.add(message.selector);
-					const uri	= vscode.Uri.parse(message.entry);
-					const stat	= await fs.getStat(uri);
-					if (stat && (stat.type & vscode.FileType.File))
-						vscode.commands.executeCommand('vscode.open', uri, {viewColumn: vscode.ViewColumn.Beside, preview: true});
-				}
-				this.anchor = message.selector;
-				this.contextEntry = message.entry;
+			case 'open':
+				const uri	= vscode.Uri.parse(message.entry);
+				const stat	= await fs.getStat(uri);
+				if (stat && (stat.type & vscode.FileType.File))
+					vscode.commands.executeCommand('vscode.open', uri, {viewColumn: vscode.ViewColumn.Beside, preview: true, preserveFocus: true});
 				break;
 		}
 	}
 
-	getContext(): Context | undefined {
-		if (!this.contextEntry)
-			return;
-		return {
-			entry: this.contextEntry,
-			isSelected: true,
-			selectionCount: Math.max(this.selected.size, 1),
-		};
+	getContext(): Promise<Context | undefined> {
+		return this.RPC({command: 'context'});
 	}
 
 	beginEdit(entry: string): Promise<string> {
-		//return this.RPC({command: 'edit', selector: entry.endsWith('/')
-		//	? `[data-entry="${entry}"]`
-		//	: `[data-entry="${entry}"] .col-name`
-		//});
-		return this.RPC({command: 'edit', selector: `[data-entry="${entry}"]`});
+		return this.RPC({command: 'edit', selector: entry.endsWith('/')
+			? `[data-entry="${entry}"]`
+			: `[data-entry="${entry}"] .file`
+		});
+		//return this.RPC({command: 'edit', selector: `[data-entry="${entry}"]`});
 	}
 }
 
@@ -281,12 +259,12 @@ export class ExplorerProvider implements vscode.CustomReadonlyEditorProvider {
 	}
 
 	private getContext(ctx?: Context) {
-		if (ctx?.entry)
-			return ctx;
+		//if (ctx?.entry)
+		//	return ctx;
 		return this.active?.getContext();
 	}
 
-	constructor(context: vscode.ExtensionContext) {
+	constructor(context: vscode.ExtensionContext, public zipFileSystem: ZipFileSystem) {
 		this.extensionUri	= context.extensionUri;
 		this.theme			= loadIconTheme();
 		
@@ -299,7 +277,7 @@ export class ExplorerProvider implements vscode.CustomReadonlyEditorProvider {
 					return;
 				}
 
-				ctx = this.getContext(ctx);
+				ctx = await this.getContext(ctx);
 				if (!ctx)
 					return;
 
@@ -317,7 +295,7 @@ export class ExplorerProvider implements vscode.CustomReadonlyEditorProvider {
 					const newUri	= oldUri.with({path: fs.dirname(oldUri) + '/' + newName});
 					try {
 						await vscode.workspace.fs.rename(oldUri, newUri, {overwrite: false});
-						active.contextEntry = newUri.toString();
+						//active.contextEntry = newUri.toString();
 					} catch (e: any) {
 						vscode.window.showErrorMessage(e?.message || String(e));
 					}
@@ -329,7 +307,7 @@ export class ExplorerProvider implements vscode.CustomReadonlyEditorProvider {
 					return;
 				}
 
-				ctx = this.getContext(ctx);
+				ctx = await this.getContext(ctx);
 				if (!ctx)
 					return;
 
@@ -338,12 +316,12 @@ export class ExplorerProvider implements vscode.CustomReadonlyEditorProvider {
 				const target = ctx.selectionCount > 1 ? `${ctx.selectionCount} selected entries` : `'${name}'`;
 				const choice = await vscode.window.showWarningMessage(
 					`Delete ${target}?`,
-					{modal: true},
+					{ modal: true },
 					'Delete'
 				);
 				if (choice === 'Delete') {
 					if (ctx.selectionCount > 1) {
-						for (const selector of this.active?.selected ?? []) {
+						for (const selector of ctx.selection ?? []) {
 							const entryUri = vscode.Uri.parse(selector);
 							await vscode.workspace.fs.delete(entryUri, {recursive: true, useTrash: false});
 						}
@@ -354,7 +332,13 @@ export class ExplorerProvider implements vscode.CustomReadonlyEditorProvider {
 			}),
 
 			vscode.commands.registerCommand('zip.explore', async (uri: vscode.Uri) => {
-				await vscode.commands.executeCommand('vscode.openWith', uri, 'zip.view', { preview: true });
+				await vscode.commands.executeCommand('vscode.openWith',
+					uri,
+					'zip.view',
+					{
+						preview: true
+					}
+				);
 			}),
 		);
 	}
@@ -363,11 +347,12 @@ export class ExplorerProvider implements vscode.CustomReadonlyEditorProvider {
 		const stat = await vscode.workspace.fs.stat(uri);
 		if (stat.type & vscode.FileType.Directory)
 			return new RootDocument(uri, false);
-		return ZipFileSystem.getDoc(uri);
+		return this.zipFileSystem.getDoc(uri);
 	}
 
 	async resolveCustomEditor(doc: RootDocument, webviewPanel: vscode.WebviewPanel, _token?: vscode.CancellationToken): Promise<void> {
-		const editor = new Explorer(doc.rootUri, webviewPanel, this.extensionUri, doc.readonly, discoverColumns(doc.rootUri), await this.theme);
+		const supported = (doc.constructor as typeof RootDocument).supportedStat;	
+		const editor = new Explorer(doc.rootUri, webviewPanel, this.extensionUri, doc.readonly, discoverColumns(supported), await this.theme);
 		this.setActive(editor);
 
 		webviewPanel.onDidChangeViewState(event => {

@@ -18,10 +18,7 @@
 			"label": "npm: watch",
 			"script": "watch",
 			"problemMatcher": "$tsc-watch",
-			"isBackground": true,
-			"presentation": {
-				"reveal": "never"
-			},
+			"isBackground": true
 		},
 		{
 			"type": "npm",
@@ -56,19 +53,11 @@
 			"problemMatcher": []
 		},
 		{
-			"label": "compile maths",
-			"type": "shell",
-			"group": "build",
-			"options": {"cwd": "node_modules/@isopodlabs/maths"},
-			"command": "tsc -p ./tsconfig.json & tsc -p ./tsconfig.esm.json",
-			"problemMatcher": "$tsc",
-		},
-				{
 			"label": "install",
 			"type": "shell",
 			"command": "code --install-extension $(node -p \"require('./package.json').name + '-' + require('./package.json').version + '.vsix'\")",
 			"windows": {
-				"command": "for /f \"usebackq delims=\" %G in (`node -p \"require('./package.json').name + '-' + require('./package.json').version + '.vsix'\"`) do code --install-extension \"%G\""
+				"command": "for /f \"usebackq delims=\" %G in (`node -p \"require('./package.json').name + '-' + require('./package.json').version + '.vsix'\"`) do code.cmd --install-extension \"%G\""
 			},
 			"problemMatcher": [],
 			"dependsOn": "PACKAGE"

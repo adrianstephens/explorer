@@ -14,7 +14,8 @@ body {
 .tree {
 	flex: 1 1 auto;
 	min-height: 0;
-	overflow: auto;
+	overflow-y: auto;
+	overflow-x: hidden;
 	position: relative;
 	scrollbar-width: none;
 	-ms-overflow-style: none;
@@ -24,29 +25,36 @@ body {
 	--depth: 0;
 	--depth2: 0;
 	--row-height: 23px;
-	 --indent-step: 20px;
+	--indent-step: 20px;
+	--shadow-top: var(--row-height);
 	background-color: var(--vscode-editor-background);
-}
-
-.tree::-webkit-scrollbar {
-	display: none;
+	&::-webkit-scrollbar {
+		display: none;
+	}
 }
 
 .children {
 	--depth2: var(--depth);
+	content-visibility: auto;
+	contain-intrinsic-size: auto var(--row-height);
 }
 
 .caret {
+	position: relative;
 	--depth: calc(var(--depth2) + 1);
 	padding-left: var(--indent-step);
 
 	&.caret-down > span {
 		position: sticky;
-		width: 100%;
+		z-index: calc(var(--depth));
 		background-color: var(--vscode-editor-background);
 		padding-top: 1px;
 		top: calc((var(--depth) - 1) * var(--row-height));
-		z-index: calc(20 - var(--depth));
+		&.stuck {
+			transform: translateZ(calc(var(--depth) * 10px));
+			/*box-shadow: var(--vscode-sideBarStickyScroll-shadow) 0 6px 6px -6px;*/
+			box-shadow: rgba(0,0,0,0.25) 0 6px 6px -6px;
+		}
 	}
 
 	&.caret-down::before {
@@ -54,11 +62,16 @@ body {
 		padding-top: 4px;
 		top: calc((var(--depth) - 1) * var(--row-height));
 	}
+
+	&.expanding::before {
+		content: '\eb19';
+		display: inline-block;
+		transform-origin: 50% 50%;
+		will-change: transform;
+		animation: codicon-spin 1.2s linear infinite;
+	}
 }
 
-.stuck {
-	box-shadow: var(--vscode-sideBarStickyScroll-shadow) 0 6px 6px -6px;
-}
 
 .header {
 	position: sticky;
@@ -79,7 +92,7 @@ body {
 .folder {
 	position: relative;
 	display: inline-block;
-	width: calc(var(--name-fr) * 100%);
+	width: calc(100% - 19px);
 }
 
 .leaf {
@@ -97,11 +110,30 @@ body {
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
+		pointer-events: none;
 	}
 }
 
+.select {
+    cursor: pointer;
+    &:hover:not(.selected) {
+	    background-color: var(--vscode-editorHoverWidget-background) !important;
+        text-decoration: inherit;
+    }
+	&:focus {
+		outline: none;
+	}
+	&.cursor:not(.editing)/*,
+	&:focus-visible */ {
+		outline: 1px solid var(--vscode-focusBorder);
+		outline-offset: -1px;
+	}
+}
+
+
 .file {
 	position: relative;
+	align-items: center;
 	padding-left: 18px;
 }
 
@@ -111,10 +143,7 @@ body {
 	font-variant-numeric: tabular-nums;
 }
 
-.col-string {
-	text-align: left;
-}
-
+.col-string
 .col-path {
 	text-align: left;
 }
@@ -126,23 +155,35 @@ body {
 .editing {
 	pointer-events: auto;
 	overflow: visible;
+	align-items: center;
+	width: 100%;
+	min-width: 0;
 	& > input {
 		display: inline;
-		top: 0;
-		left: 0;
+		width: calc(100% - var(--edit-input-offset, 0px));
 		margin: 0;
 		border: 0;
 		padding: 0;
 		box-sizing: border-box;
-		background: transparent;
+		background: var(--vscode-editor-background);
 		color: inherit;
+		font: inherit;
 		outline: 1px solid var(--vscode-focusBorder);
 		outline-offset: -1px;
-		font: inherit;
 		line-height: inherit;
-		width: 100%;
 	}
+
 }
+
+.file.editing {
+	overflow: visible;
+}
+
+.folder.editing > input {
+	width: calc(var(--name-fr) * 100% - var(--depth) * (1 - var(--name-fr)) * var(--indent-step) - var(--edit-input-offset, 0px) - 19px);
+
+}
+
 
 /* ── symlink badge ────────────────────────────────────────────────────── */
 
