@@ -20,17 +20,13 @@
 	},
 	"files": [
 		"node_modules/@isopodlabs/binary/dist/*.js",
-		"node_modules/@isopodlabs/binary_bitmaps/dist/*.js",
 		"node_modules/@isopodlabs/utilities/dist/*.js",
 		"node_modules/@isopodlabs/vscode_utils/dist/**/*.js",
 		"node_modules/@isopodlabs/vscode_utils/assets",
 		"out/**/*.js",
-		"assets/explorer.css",
-		"assets/bitmap.css",
-		"assets/bitmap.vert",
-		"assets/bitmap.frag",
-		"assets/icon.png",
-		"LICENSE.txt"
+		"assets",
+		"LICENSE.txt",
+		"!**/.DS_Store"
 	],
 	"engines": {
 		"vscode": "^1.75.0"
@@ -85,6 +81,9 @@
 						"filenamePattern": "*.bmp"
 					},
 					{
+						"filenamePattern": "*.gif"
+					},
+					{
 						"filenamePattern": "*.png"
 					},
 					{
@@ -95,6 +94,18 @@
 					},
 					{
 						"filenamePattern": "*.dds"
+					},
+					{
+						"filenamePattern": "*.psd"
+					},
+					{
+						"filenamePattern": "*.tga"
+					},
+					{
+						"filenamePattern": "*.tif"
+					},
+					{
+						"filenamePattern": "*.tiff"
 					}
 				]
 			}
@@ -172,8 +183,8 @@
 		"build": "tsc -b",
 		"watch": "tsc -b -watch",
 		"watch-link": "tsc -b -watch ./tsconfig.link.json",
-		"link": "npm link @isopodlabs/binary @isopodlabs/binary_libs @isopodlabs/binary_bitmaps @isopodlabs/utilities @isopodlabs/vscode_utils",
-		"update": "npm install @isopodlabs/binary @isopodlabs/binary_libs @isopodlabs/binary_bitmaps @isopodlabs/utilities @isopodlabs/vscode_utils"
+		"link": "npm link @isopodlabs/binary @isopodlabs/binary_libs @isopodlabs/utilities @isopodlabs/vscode_utils",
+		"update": "npm install @isopodlabs/binary @isopodlabs/binary_libs @isopodlabs/utilities @isopodlabs/vscode_utils"
 	},
 	"devDependencies": {
 		"@types/node": "^18",
@@ -181,10 +192,9 @@
 		"typescript": "^5.8.0"
 	},
 	"dependencies": {
-		"@isopodlabs/binary": "^1.9.1",
-		"@isopodlabs/binary_libs": "^1.7.0",
-		"@isopodlabs/binary_bitmaps": "^1.7.0",
+		"@isopodlabs/binary": "^1.10.2",
+		"@isopodlabs/binary_libs": "^1.8.0",
 		"@isopodlabs/utilities": "^1.10.0",
-		"@isopodlabs/vscode_utils": "^0.6.2"
+		"@isopodlabs/vscode_utils": "^0.7.0"
 	}
 }
