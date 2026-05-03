@@ -13,7 +13,6 @@
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js",
 				"${workspaceFolder}/node_modules/@isopodlabs/binary/dist/*.js",
-				"${workspaceFolder}/node_modules/@isopodlabs/binary_bitmaps/dist/*.js",
 				"${workspaceFolder}/node_modules/@isopodlabs/utilities/dist/*.js",
 				"${workspaceFolder}/node_modules/@isopodlabs/vscode_utils/dist/*.js",
 				//"D:/dev/packages/**.js",

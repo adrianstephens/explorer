@@ -4,10 +4,9 @@ import { Tree } from '@isopodlabs/vscode_utils/webview/tree.js';
 export type MessageOut =
 	| {command: 'ready'}
 	| {command: 'copyFile', target: string, data: ArrayBuffer | string, mtime?: number, move?: boolean}
-	| {command: 'drag_start', source: string, selector: string}
+//	| {command: 'drag_start', source: string, selector: string}
 	| {command: 'load', entry: string, requestId: number}
 	| {command: 'open', entry: string, isSelected: boolean, selection: string[]}
-	| {command: 'delete'}
 
 export type MessageIn =
 	| {command: 'update', selector: string}
@@ -238,7 +237,7 @@ tree.dragAndDrop({
 			data.setDragImage(ghost, -10, -10);
 			requestAnimationFrame(() => ghost!.remove());
 		}
-		postMessage({command: 'drag_start', source: entry, selector: generateSelector(row)});
+		//postMessage({command: 'drag_start', source: entry, selector: generateSelector(row)});
 		return entries;
 	},
 	over(ctx: string[], target, data, modifierKey) {
@@ -482,11 +481,12 @@ treeRoot.addEventListener('keydown', event => {
 			if (tree.cursor)
 				toggleSelection(tree.cursor);
 			break;
-
+/*
 		case 'Backspace':
 			event.preventDefault();
 			postMessage({command: 'delete'});
 			break;
+*/
 	}
 });
 

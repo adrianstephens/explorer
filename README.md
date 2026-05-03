@@ -23,14 +23,6 @@ A VS Code extension that opens archives (and folders) in a tree-style explorer c
 - Delete (`Delete` key)
 - Context menu actions in the custom editor
 - Explorer context command: `Reveal in Editor` for folders
-- Open bitmap images with the new `Bitmap Viewer` for pixel-level zoom and edit
-
-## Commands
-
-- `zip.explore`: Reveal in ZIP Explorer...
-- `zip.rename`: Rename...
-- `zip.delete`: Delete
-- `bitmap.open`: Open Bitmap Viewer...
 
 ## Usage
 

@@ -1,6 +1,6 @@
 {
-	"name": "yahtze",
-	"displayName": "ZIP/TAR Explorer",
+	"name": "archive-explorer",
+	"displayName": "Archive Explorer",
 	"description": "Custom editor and explorer for ZIP, TAR, and TGZ archives or folders.",
 	"keywords": [
 		"zip",
@@ -9,7 +9,7 @@
 		"archives",
 		"explorer"
 	],
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"license": "MIT",
 	"icon": "assets/icon.png",
 	"publisher": "isopodlabs",
@@ -35,9 +35,6 @@
 		"Other",
 		"Visualization"
 	],
-	"extensionKind": [
-		"workspace"
-	],
 	"activationEvents": [
 		"onFileSystem:zip"
 	],
@@ -46,7 +43,7 @@
 		"customEditors": [
 			{
 				"viewType": "zip.view",
-				"displayName": "ZIP Viewer",
+				"displayName": "Archive Explorer",
 				"priority": "default",
 				"selector": [
 					{
@@ -71,43 +68,6 @@
 						"filenamePattern": "*.tar.gz"
 					}
 				]
-			},
-			{
-				"viewType": "bitmap.viewer",
-				"displayName": "Bitmap Viewer",
-				"priority": "default",
-				"selector": [
-					{
-						"filenamePattern": "*.bmp"
-					},
-					{
-						"filenamePattern": "*.gif"
-					},
-					{
-						"filenamePattern": "*.png"
-					},
-					{
-						"filenamePattern": "*.jpg"
-					},
-					{
-						"filenamePattern": "*.jpeg"
-					},
-					{
-						"filenamePattern": "*.dds"
-					},
-					{
-						"filenamePattern": "*.psd"
-					},
-					{
-						"filenamePattern": "*.tga"
-					},
-					{
-						"filenamePattern": "*.tif"
-					},
-					{
-						"filenamePattern": "*.tiff"
-					}
-				]
 			}
 		],
 		"commands": [
@@ -124,16 +84,6 @@
 			{
 				"command": "zip.explore",
 				"title": "Reveal in Editor"
-			},
-			{
-				"command": "bitmap.fit",
-				"title": "Fit to Window",
-				"icon": "$(screen-normal)"
-			},
-			{
-				"command": "bitmap.reset",
-				"title": "Reset Zoom",
-				"icon": "$(refresh)"
 			}
 		],
 		"keybindings": [
@@ -163,18 +113,6 @@
 				{
 					"command": "zip.explore",
 					"when": "explorerResourceIsFolder"
-				}
-			],
-			"editor/title": [
-				{
-					"command": "bitmap.fit",
-					"when": "activeCustomEditorId == bitmap.viewer",
-					"group": "navigation"
-				},
-				{
-					"command": "bitmap.reset",
-					"when": "activeCustomEditorId == bitmap.viewer",
-					"group": "navigation"
 				}
 			]
 		}
